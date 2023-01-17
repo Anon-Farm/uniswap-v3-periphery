@@ -197,5 +197,85 @@ describe('Quoter', () => {
         expect(quote).to.eq(9981)
       })
     })
+    describe('#quoteExactInputIntermediate', () => {
+      it('0 -> 1', async () => {
+        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+          encodePath([tokens[0].address, tokens[1].address], [FeeAmount.MEDIUM]),
+          3
+        )
+
+        expect(quote[0]).to.eq(1)
+      })
+
+      it('1 -> 0', async () => {
+        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+          encodePath([tokens[1].address, tokens[0].address], [FeeAmount.MEDIUM]),
+          3
+        )
+
+        expect(quote[0]).to.eq(1)
+      })
+
+      it('0 -> 1 -> 2', async () => {
+        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+          encodePath(
+            tokens.map((token) => token.address),
+            [FeeAmount.MEDIUM, FeeAmount.MEDIUM]
+          ),
+          5
+        )
+        expect(quote[0]).to.eq(1)
+      })
+
+      it('2 -> 1 -> 0', async () => {
+        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+          encodePath(tokens.map((token) => token.address).reverse(), [FeeAmount.MEDIUM, FeeAmount.MEDIUM]),
+          5
+        )
+
+        expect(quote[0]).to.eq(1)
+      })
+    })
+
+    describe('#quoteExactOutputIntermediate', () => {
+      it('0 -> 1', async () => {
+        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+          encodePath([tokens[1].address, tokens[0].address], [FeeAmount.MEDIUM]),
+          1
+        )
+
+        expect(quote[0]).to.eq(3)
+      })
+
+      it('1 -> 0', async () => {
+        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+          encodePath([tokens[0].address, tokens[1].address], [FeeAmount.MEDIUM]),
+          1
+        )
+
+        expect(quote[0]).to.eq(3)
+      })
+
+      it('0 -> 1 -> 2', async () => {
+        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+          encodePath(tokens.map((token) => token.address).reverse(), [FeeAmount.MEDIUM, FeeAmount.MEDIUM]),
+          1
+        )
+
+        expect(quote[0]).to.eq(5)
+      })
+
+      it('2 -> 1 -> 0', async () => {
+        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+          encodePath(
+            tokens.map((token) => token.address),
+            [FeeAmount.MEDIUM, FeeAmount.MEDIUM]
+          ),
+          1
+        )
+
+        expect(quote[0]).to.eq(5)
+      })
+    })
   })
 })

@@ -48,4 +48,22 @@ interface IQuoterV3 {
         uint256 amountOut,
         uint160 sqrtPriceLimitX96
     ) external view returns (uint256 amountIn);
+
+    /// @notice Returns the amount out received for a given exact input swap without executing the swap
+    /// @param path The path of the swap, i.e. each token pair and the pool fee
+    /// @param amountIn The amount of the first token to swap
+    /// @return amounts List of amounts in the multihop swap, and amounts[-1] is equal to amountIn
+    function quoteExactInputIntermediate(bytes memory path, uint256 amountIn)
+        external
+        view
+        returns (uint256[] memory amounts);
+
+    /// @notice Returns the amount in required for a given exact output swap without executing the swap
+    /// @param path The path of the swap, i.e. each token pair and the pool fee. Path must be provided in reverse order
+    /// @param amountOut The amount of the last token to receive
+    /// @return amounts List of amounts in the multihop swap, and amounts[-1] is equal to amountOut
+    function quoteExactOutputIntermediate(bytes memory path, uint256 amountOut)
+        external
+        view
+        returns (uint256[] memory amounts);
 }

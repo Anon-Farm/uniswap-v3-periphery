@@ -110,4 +110,50 @@ contract QuoterV3 is IQuoterV3, PeripheryImmutableState {
             }
         }
     }
+
+    function quoteExactInputIntermediate(bytes memory path, uint256 amountIn)
+        external
+        view
+        returns (uint256[] memory amounts)
+    {
+        uint256 i = path.numPools();
+        amounts = new uint256[](i + 1);
+        amounts[i] = amountIn;
+        while (true) {
+            (address tokenIn, address tokenOut, uint24 fee) = path.decodeFirstPool();
+
+            // the outputs of prior swaps become the inputs to subsequent ones
+            amounts[--i] = quoteExactInputSingle(tokenIn, tokenOut, fee, amounts[i], 0);
+
+            // decide whether to continue or terminate
+            if (i > 0) {
+                path = path.skipToken();
+            } else {
+                return amounts;
+            }
+        }
+    }
+
+    function quoteExactOutputIntermediate(bytes memory path, uint256 amountOut)
+        external
+        view
+        returns (uint256[] memory amounts)
+    {
+        uint256 i = path.numPools();
+        amounts = new uint256[](i + 1);
+        amounts[i] = amountOut;
+        while (true) {
+            (address tokenOut, address tokenIn, uint24 fee) = path.decodeFirstPool();
+
+            // the inputs of prior swaps become the outputs of subsequent ones
+            amounts[--i] = quoteExactOutputSingle(tokenIn, tokenOut, fee, amounts[i], 0);
+
+            // decide whether to continue or terminate
+            if (i > 0) {
+                path = path.skipToken();
+            } else {
+                return amounts;
+            }
+        }
+    }
 }
