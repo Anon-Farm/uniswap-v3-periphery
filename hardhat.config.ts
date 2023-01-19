@@ -3,6 +3,7 @@ import '@nomiclabs/hardhat-etherscan'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-typechain'
 import 'hardhat-watcher'
+import 'hardhat-dependency-compiler'
 
 const LOW_OPTIMIZER_COMPILER_SETTINGS = {
   version: '0.8.15',
@@ -37,6 +38,19 @@ const DEFAULT_COMPILER_SETTINGS = {
     optimizer: {
       enabled: true,
       runs: 1_000_000,
+    },
+    metadata: {
+      bytecodeHash: 'none',
+    },
+  },
+}
+
+const V3CORE_COMPILER_SETTINGS = {
+  version: '0.8.12',
+  settings: {
+    optimizer: {
+      enabled: true,
+      runs: 625,
     },
     metadata: {
       bytecodeHash: 'none',
@@ -83,7 +97,7 @@ export default {
     apiKey: process.env.ETHERSCAN_API_KEY,
   },
   solidity: {
-    compilers: [DEFAULT_COMPILER_SETTINGS],
+    compilers: [DEFAULT_COMPILER_SETTINGS, V3CORE_COMPILER_SETTINGS],
     overrides: {
       'contracts/NonfungiblePositionManager.sol': LOW_OPTIMIZER_COMPILER_SETTINGS,
       'contracts/test/MockTimeNonfungiblePositionManager.sol': LOW_OPTIMIZER_COMPILER_SETTINGS,
@@ -100,4 +114,10 @@ export default {
       verbose: true,
     },
   },
+  dependencyCompiler: {
+    paths:[
+      '@uniswap/v3-core/contracts/UniswapV3Factory.sol',
+      '@uniswap/v3-core/contracts/UniswapV3Pool.sol',
+    ],
+  }
 }
