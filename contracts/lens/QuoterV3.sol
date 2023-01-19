@@ -33,6 +33,16 @@ contract QuoterV3 is IQuoterV3, PeripheryImmutableState {
         return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
     }
 
+    function decodeFirstPool(bytes memory path, bool exactIn)
+        private
+        view
+        returns (IUniswapV3Pool pool, bool zeroForOne)
+    {
+        (address tokenA, address tokenB, uint24 fee) = path.decodeFirstPool();
+        pool = getPool(tokenA, tokenB, fee);
+        zeroForOne = exactIn == (tokenA < tokenB);
+    }
+
     /// @inheritdoc IQuoterV3
     function quoteExactInputSingle(
         address tokenIn,
@@ -111,49 +121,95 @@ contract QuoterV3 is IQuoterV3, PeripheryImmutableState {
         }
     }
 
-    function quoteExactInputIntermediate(bytes memory path, uint256 amountIn)
-        external
-        view
-        returns (uint256[] memory amounts)
-    {
-        uint256 i = path.numPools();
-        amounts = new uint256[](i + 1);
-        amounts[i] = amountIn;
-        while (true) {
-            (address tokenIn, address tokenOut, uint24 fee) = path.decodeFirstPool();
-
-            // the outputs of prior swaps become the inputs to subsequent ones
-            amounts[--i] = quoteExactInputSingle(tokenIn, tokenOut, fee, amounts[i], 0);
-
-            // decide whether to continue or terminate
-            if (i > 0) {
-                path = path.skipToken();
-            } else {
-                return amounts;
-            }
-        }
+    function quoteExactInputSingleV3(
+        IUniswapV3Pool pool,
+        bool zeroForOne,
+        uint256 amountIn,
+        uint160 sqrtPriceLimitX96,
+        Simulate.State memory swapState
+    ) internal view returns (uint256 amountOut) {
+        (int256 amount0, int256 amount1) = pool.simulateSwap(
+            zeroForOne,
+            amountIn.toInt256(),
+            sqrtPriceLimitX96 == 0
+                ? (zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1)
+                : sqrtPriceLimitX96,
+            swapState
+        );
+        return zeroForOne ? uint256(-amount1) : uint256(-amount0);
     }
 
-    function quoteExactOutputIntermediate(bytes memory path, uint256 amountOut)
-        external
-        view
-        returns (uint256[] memory amounts)
-    {
+    function quoteExactInputV3(
+        bytes memory path,
+        uint256 amountIn,
+        Simulate.State[] memory swapStates
+    ) external view override returns (uint256[] memory amounts, Simulate.State[] memory swapStatesEnd) {
         uint256 i = path.numPools();
         amounts = new uint256[](i + 1);
-        amounts[i] = amountOut;
+        if (swapStates.length == 0) {
+            swapStates = new Simulate.State[](i);
+        }
+        amounts[i] = amountIn;
         while (true) {
-            (address tokenOut, address tokenIn, uint24 fee) = path.decodeFirstPool();
+            (IUniswapV3Pool pool, bool zeroForOne) = decodeFirstPool(path, true);
 
-            // the inputs of prior swaps become the outputs of subsequent ones
-            amounts[--i] = quoteExactOutputSingle(tokenIn, tokenOut, fee, amounts[i], 0);
+            // the outputs of prior swaps become the inputs to subsequent ones
+            --i;
+            amounts[i] = quoteExactInputSingleV3(pool, zeroForOne, amounts[i + 1], 0, swapStates[i]);
 
             // decide whether to continue or terminate
             if (i > 0) {
                 path = path.skipToken();
             } else {
-                return amounts;
+                break;
             }
         }
+        return (amounts, swapStates);
+    }
+
+    function quoteExactOutputSingleV3(
+        IUniswapV3Pool pool,
+        bool zeroForOne,
+        uint256 amountOut,
+        uint160 sqrtPriceLimitX96,
+        Simulate.State memory swapState
+    ) internal view returns (uint256 amountIn) {
+        (int256 amount0, int256 amount1) = pool.simulateSwap(
+            zeroForOne,
+            -amountOut.toInt256(),
+            sqrtPriceLimitX96 == 0
+                ? (zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1)
+                : sqrtPriceLimitX96,
+            swapState
+        );
+        return zeroForOne ? uint256(amount0) : uint256(amount1);
+    }
+
+    function quoteExactOutputV3(
+        bytes memory path,
+        uint256 amountOut,
+        Simulate.State[] memory swapStates
+    ) external view override returns (uint256[] memory amounts, Simulate.State[] memory swapStatesEnd) {
+        uint256 i = path.numPools();
+        amounts = new uint256[](i + 1);
+        if (swapStates.length == 0) {
+            swapStates = new Simulate.State[](i);
+        }
+        amounts[i] = amountOut;
+        while (true) {
+            (IUniswapV3Pool pool, bool zeroForOne) = decodeFirstPool(path, false);
+
+            // the inputs of prior swaps become the outputs of subsequent ones
+            --i;
+            amounts[i] = quoteExactOutputSingleV3(pool, zeroForOne, amounts[i + 1], 0, swapStates[i]);
+
+            // decide whether to continue or terminate
+            if (i > 0) {
+                path = path.skipToken();
+            } else {
+                break;
+            }
+        }
+        return (amounts, swapStates);
     }
 }

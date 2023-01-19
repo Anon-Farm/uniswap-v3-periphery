@@ -2,6 +2,8 @@
 pragma solidity >=0.7.5;
 pragma abicoder v2;
 
+import '@uniswap/v3-core/contracts/libraries/Simulate.sol';
+
 /// @title Quoter Interface
 /// @notice Supports quoting the calculated amounts from exact input or exact output swaps
 /// @dev These functions are not marked view because they rely on calling non-view functions and reverting
@@ -52,18 +54,22 @@ interface IQuoterV3 {
     /// @notice Returns the amount out received for a given exact input swap without executing the swap
     /// @param path The path of the swap, i.e. each token pair and the pool fee
     /// @param amountIn The amount of the first token to swap
+    /// @param swapStates The start price overrides
     /// @return amounts List of amounts in the multihop swap, and amounts[-1] is equal to amountIn
-    function quoteExactInputIntermediate(bytes memory path, uint256 amountIn)
-        external
-        view
-        returns (uint256[] memory amounts);
+    function quoteExactInputV3(
+        bytes memory path,
+        uint256 amountIn,
+        Simulate.State[] memory swapStates
+    ) external view returns (uint256[] memory amounts, Simulate.State[] memory swapStatesEnd);
 
     /// @notice Returns the amount in required for a given exact output swap without executing the swap
     /// @param path The path of the swap, i.e. each token pair and the pool fee. Path must be provided in reverse order
     /// @param amountOut The amount of the last token to receive
+    /// @param swapStates The start price overrides
     /// @return amounts List of amounts in the multihop swap, and amounts[-1] is equal to amountOut
-    function quoteExactOutputIntermediate(bytes memory path, uint256 amountOut)
-        external
-        view
-        returns (uint256[] memory amounts);
+    function quoteExactOutputV3(
+        bytes memory path,
+        uint256 amountOut,
+        Simulate.State[] memory swapStates
+    ) external view returns (uint256[] memory amounts, Simulate.State[] memory swapStatesEnd);
 }

@@ -1,7 +1,7 @@
 import { Fixture } from 'ethereum-waffle'
-import { constants, Wallet } from 'ethers'
+import { BigNumber, constants, Wallet } from 'ethers'
 import { ethers, waffle } from 'hardhat'
-import { MockTimeNonfungiblePositionManager, QuoterV3, TestERC20 } from '../typechain'
+import { IUniswapV3Factory, MockTimeNonfungiblePositionManager, QuoterV3, TestERC20 } from '../typechain'
 import completeFixture from './shared/completeFixture'
 import { FeeAmount, MaxUint128 } from './shared/constants'
 import { encodePriceSqrt } from './shared/encodePriceSqrt'
@@ -9,12 +9,14 @@ import { expandTo18Decimals } from './shared/expandTo18Decimals'
 import { expect } from './shared/expect'
 import { encodePath } from './shared/path'
 import { createPool } from './shared/quoter'
+import { computePoolAddress } from './shared/computePoolAddress'
 
 describe('Quoter', () => {
   let wallet: Wallet
   let trader: Wallet
 
   const swapRouterFixture: Fixture<{
+    factory: IUniswapV3Factory
     nft: MockTimeNonfungiblePositionManager
     tokens: [TestERC20, TestERC20, TestERC20]
     quoter: QuoterV3
@@ -33,12 +35,14 @@ describe('Quoter', () => {
     quoter = (await quoterFactory.deploy(factory.address, weth9.address)) as QuoterV3
 
     return {
+      factory,
       tokens,
       nft,
       quoter,
     }
   }
 
+  let factory: IUniswapV3Factory
   let nft: MockTimeNonfungiblePositionManager
   let tokens: [TestERC20, TestERC20, TestERC20]
   let quoter: QuoterV3
@@ -53,7 +57,7 @@ describe('Quoter', () => {
 
   // helper for getting weth and token balances
   beforeEach('load fixture', async () => {
-    ;({ tokens, nft, quoter } = await loadFixture(swapRouterFixture))
+    ;({ tokens, nft, quoter, factory } = await loadFixture(swapRouterFixture))
   })
 
   describe('quotes', () => {
@@ -197,84 +201,93 @@ describe('Quoter', () => {
         expect(quote).to.eq(9981)
       })
     })
-    describe('#quoteExactInputIntermediate', () => {
+
+    describe('#quoteExactInputV3', () => {
       it('0 -> 1', async () => {
-        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactInputV3(
           encodePath([tokens[0].address, tokens[1].address], [FeeAmount.MEDIUM]),
-          3
+          3,
+          []
         )
 
-        expect(quote[0]).to.eq(1)
+        expect(amounts[0]).to.eq(1)
       })
 
       it('1 -> 0', async () => {
-        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactInputV3(
           encodePath([tokens[1].address, tokens[0].address], [FeeAmount.MEDIUM]),
-          3
+          3,
+          []
         )
 
-        expect(quote[0]).to.eq(1)
+        expect(amounts[0]).to.eq(1)
       })
 
       it('0 -> 1 -> 2', async () => {
-        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactInputV3(
           encodePath(
             tokens.map((token) => token.address),
             [FeeAmount.MEDIUM, FeeAmount.MEDIUM]
           ),
-          5
+          5,
+          []
         )
-        expect(quote[0]).to.eq(1)
+        expect(amounts[0]).to.eq(1)
       })
 
       it('2 -> 1 -> 0', async () => {
-        const quote = await quoter.callStatic.quoteExactInputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactInputV3(
           encodePath(tokens.map((token) => token.address).reverse(), [FeeAmount.MEDIUM, FeeAmount.MEDIUM]),
-          5
+          5,
+          []
         )
 
-        expect(quote[0]).to.eq(1)
+        expect(amounts[0]).to.eq(1)
       })
     })
 
-    describe('#quoteExactOutputIntermediate', () => {
+    describe('#quoteExactOutputV3', () => {
       it('0 -> 1', async () => {
-        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactOutputV3(
           encodePath([tokens[1].address, tokens[0].address], [FeeAmount.MEDIUM]),
-          1
+          1,
+          []
         )
 
-        expect(quote[0]).to.eq(3)
+        expect(amounts[0]).to.eq(3)
       })
 
       it('1 -> 0', async () => {
-        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactOutputV3(
           encodePath([tokens[0].address, tokens[1].address], [FeeAmount.MEDIUM]),
-          1
+          1,
+          []
         )
 
-        expect(quote[0]).to.eq(3)
+        expect(amounts[0]).to.eq(3)
       })
 
       it('0 -> 1 -> 2', async () => {
-        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactOutputV3(
           encodePath(tokens.map((token) => token.address).reverse(), [FeeAmount.MEDIUM, FeeAmount.MEDIUM]),
-          1
+          1,
+          []
         )
 
-        expect(quote[0]).to.eq(5)
+        expect(amounts[0]).to.eq(5)
       })
 
       it('2 -> 1 -> 0', async () => {
-        const quote = await quoter.callStatic.quoteExactOutputIntermediate(
+        const { amounts } = await quoter.callStatic.quoteExactOutputV3(
           encodePath(
             tokens.map((token) => token.address),
             [FeeAmount.MEDIUM, FeeAmount.MEDIUM]
           ),
-          1
+          1,
+          []
         )
 
-        expect(quote[0]).to.eq(5)
+        expect(amounts[0]).to.eq(5)
       })
     })
   })
